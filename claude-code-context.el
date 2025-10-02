@@ -42,7 +42,7 @@
 ;;            "hooks": [
 ;;              {
 ;;                "type": "command",
-;;                "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-context.txt\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
+;;                "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
 ;;              }
 ;;            ]
 ;;          }
@@ -64,7 +64,7 @@
   :prefix "claude-code-context-")
 
 (defcustom claude-code-context-file
-  (expand-file-name "claude-context.txt" user-emacs-directory)
+  (expand-file-name "claude-code-context.json" user-emacs-directory)
   "File where Claude Code context is written."
   :type 'file
   :group 'claude-code-context)
@@ -78,36 +78,33 @@
   "Timer for updating Claude Code context.")
 
 (defun claude-code--get-current-context ()
-  "Get current buffer context as a string."
+  "Get current buffer context as an alist."
   (when (buffer-file-name)
     (let* ((file (buffer-file-name))
            (line (line-number-at-pos))
            (col (current-column))
+           (modified (buffer-modified-p))
            (selection (when (use-region-p)
                         (buffer-substring-no-properties (region-beginning) (region-end)))))
-      (concat
-       (format "File: %s\n" file)
-       (format "Line: %d, Column: %d\n" line col)
-       (when selection
-         (format "Selection:\n```\n%s\n```\n" selection))))))
+      `((file . ,file)
+        (line . ,line)
+        (column . ,col)
+        (modified . ,(if modified t :json-false))
+        ,@(when selection `((selection . ,selection)))))))
 
 (defun claude-code--get-flymake-diagnostics ()
-  "Get flymake diagnostics for current buffer."
+  "Get flymake diagnostics for current buffer as a list."
   (when (and (bound-and-true-p flymake-mode)
              (buffer-file-name))
     (let ((diags (flymake-diagnostics)))
       (when diags
-        (concat
-         "\nFlymake Diagnostics:\n"
-         (mapconcat
-          (lambda (diag)
-            (format "  %4d %8s  %-8s  %s"
-                    (line-number-at-pos (flymake-diagnostic-beg diag))
-                    (flymake-diagnostic-type diag)
-                    (flymake-diagnostic-backend diag)
-                    (flymake-diagnostic-text diag)))
-          diags
-          "\n"))))))
+        (mapcar
+         (lambda (diag)
+           `((line . ,(line-number-at-pos (flymake-diagnostic-beg diag)))
+             (type . ,(symbol-name (flymake-diagnostic-type diag)))
+             (backend . ,(symbol-name (flymake-diagnostic-backend diag)))
+             (text . ,(flymake-diagnostic-text diag))))
+         diags)))))
 
 (defun claude-code-update-context ()
   "Update Claude Code context file with current buffer state."
@@ -115,9 +112,7 @@
   (let ((context (claude-code--get-current-context)))
     (when context
       (with-temp-file claude-code-context-file
-        (insert "# Emacs Context for Claude Code\n")
-        (insert "# This file is automatically updated by Emacs\n\n")
-        (insert context))
+        (insert (json-encode context)))
       (message "Claude Code context updated"))))
 
 (defun claude-code-add-diagnostics ()
@@ -126,12 +121,10 @@
   (let ((context (claude-code--get-current-context))
         (diags (claude-code--get-flymake-diagnostics)))
     (when context
+      (when diags
+        (setq context (append context `((diagnostics . ,diags)))))
       (with-temp-file claude-code-context-file
-        (insert "# Emacs Context for Claude Code\n")
-        (insert "# This file is automatically updated by Emacs\n\n")
-        (insert context)
-        (when diags
-          (insert diags)))
+        (insert (json-encode context)))
       (message "Claude Code context updated with diagnostics"))))
 
 (defun claude-code-clear-context ()

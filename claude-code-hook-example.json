@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-context.txt\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
+            "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
           }
         ]
       }
