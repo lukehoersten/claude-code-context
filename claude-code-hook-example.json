@@ -1,0 +1,16 @@
+{
+  "description": "Example Claude Code hook configuration for Emacs context integration",
+  "note": "Add the 'hooks' section below to your ~/.claude/settings.json file",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-context.txt\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
