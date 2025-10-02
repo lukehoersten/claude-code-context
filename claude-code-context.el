@@ -168,10 +168,10 @@
 ;; Keybindings
 (defvar claude-code-context-command-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "u") 'claude-code-update-context)
-    (define-key map (kbd "d") 'claude-code-add-diagnostics)
-    (define-key map (kbd "c") 'claude-code-clear-context)
-    (define-key map (kbd "m") 'claude-code-context-mode)
+    (define-key map (kbd "u") #'claude-code-update-context)
+    (define-key map (kbd "d") #'claude-code-add-diagnostics)
+    (define-key map (kbd "c") #'claude-code-clear-context)
+    (define-key map (kbd "m") #'claude-code-context-mode)
     map)
   "Keymap for claude-code-context commands.")
 
