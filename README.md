@@ -54,6 +54,18 @@ Add to your `init.el`:
 
 ### Claude Code Hook Setup
 
+#### Option A: Automatic via `/update-config` skill
+
+If you use [Claude Code](https://claude.ai/code), you can set up the hook automatically. Type this in Claude Code:
+
+```
+/update-config Add a UserPromptSubmit hook that reads ~/.config/emacs/claude-code-context.json and injects it into the prompt
+```
+
+Claude Code's `update-config` skill will read your existing `~/.claude/settings.json`, merge in the hook safely, and validate the result.
+
+#### Option B: Manual
+
 Add this hook configuration to your `~/.claude/settings.json`:
 
 ```json
@@ -64,7 +76,7 @@ Add this hook configuration to your `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
+            "command": "CONTEXT_FILE=\"${XDG_CONFIG_HOME:-$HOME/.config}/emacs/claude-code-context.json\"; [ -f \"$CONTEXT_FILE\" ] || CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
           }
         ]
       }
@@ -85,10 +97,10 @@ When `claude-code-context-mode` is enabled, your current buffer context is autom
 
 | Keybinding  | Command                         | Description                                    |
 |-------------|---------------------------------|------------------------------------------------|
-| `C-c C-l u` | `claude-code-update-context`    | Manually update context                        |
-| `C-c C-l d` | `claude-code-add-diagnostics`   | Add flymake diagnostics to context             |
-| `C-c C-l c` | `claude-code-clear-context`     | Clear the context file                         |
-| `C-c C-l m` | `claude-code-context-mode`      | Toggle automatic context mode                  |
+| `C-c C-l u` | `claude-code-context-update-context`    | Manually update context                        |
+| `C-c C-l d` | `claude-code-context-add-diagnostics`   | Add flymake diagnostics to context             |
+| `C-c C-l c` | `claude-code-context-clear-context`     | Clear the context file                         |
+| `C-c C-l m` | `claude-code-context-mode`              | Toggle automatic context mode                  |
 
 ### Workflow Example
 
@@ -103,7 +115,7 @@ When `claude-code-context-mode` is enabled, your current buffer context is autom
 
 The context file is JSON format for easy parsing and includes:
 
-- **file**: Full path to the current buffer's file
+- **buffer**: Full path to the current buffer's file, or buffer name for non-file buffers (e.g. `*Messages*`). Selections work in all buffers — select the relevant text to include it in context.
 - **line**: Current line number
 - **column**: Current column number
 - **modified**: Boolean indicating if the buffer has unsaved changes
@@ -114,7 +126,7 @@ Example context:
 
 ```json
 {
-  "file": "/Users/username/project/src/main.py",
+  "buffer": "/Users/username/project/src/main.py",
   "line": 42,
   "column": 8,
   "modified": true,

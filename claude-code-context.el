@@ -1,9 +1,10 @@
-;;; claude-code-context.el --- Share Emacs context with Claude Code -*- lexical-binding: t; -*-
+;;; claude-code-context.el --- Share buffer context with Claude Code -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Luke Hoersten
 
 ;; Author: Luke Hoersten <Luke@Hoersten.org>
-;; URL: https://github.com/lhoersten/claude-code-context
+;; Maintainer: Luke Hoersten <Luke@Hoersten.org>
+;; URL: https://github.com/lukehoersten/claude-code-context
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: tools, ai, convenience
@@ -25,7 +26,7 @@
 
 ;;; Commentary:
 
-;; This package automatically shares your current Emacs buffer context
+;; This package automatically shares your current buffer context
 ;; (file, line, column, selection, and diagnostics) with Claude Code
 ;; via a context file that Claude Code hooks can read.
 ;;
@@ -42,7 +43,7 @@
 ;;            "hooks": [
 ;;              {
 ;;                "type": "command",
-;;                "command": "CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
+;;                "command": "CONTEXT_FILE=\"${XDG_CONFIG_HOME:-$HOME/.config}/emacs/claude-code-context.json\"; [ -f \"$CONTEXT_FILE\" ] || CONTEXT_FILE=\"$HOME/.emacs.d/claude-code-context.json\"; if [ -f \"$CONTEXT_FILE\" ]; then echo \"\\n---\\n## Emacs Context\\n\"; cat \"$CONTEXT_FILE\"; echo \"\\n---\"; fi"
 ;;              }
 ;;            ]
 ;;          }
@@ -59,7 +60,7 @@
 ;;; Code:
 
 (defgroup claude-code-context nil
-  "Share Emacs context with Claude Code."
+  "Share buffer context with Claude Code."
   :group 'tools
   :prefix "claude-code-context-")
 
@@ -77,22 +78,22 @@
 (defvar claude-code-context-timer nil
   "Timer for updating Claude Code context.")
 
-(defun claude-code--get-current-context ()
+(defun claude-code-context--get-current-context ()
   "Get current buffer context as an alist."
-  (when (buffer-file-name)
-    (let* ((file (buffer-file-name))
+  (unless (minibufferp)
+    (let* ((file (or (buffer-file-name) (buffer-name)))
            (line (line-number-at-pos))
            (col (current-column))
-           (modified (buffer-modified-p))
+           (modified (and (buffer-file-name) (buffer-modified-p)))
            (selection (when (use-region-p)
                         (buffer-substring-no-properties (region-beginning) (region-end)))))
-      `((file . ,file)
+      `((buffer . ,file)
         (line . ,line)
         (column . ,col)
         (modified . ,(if modified t :json-false))
         ,@(when selection `((selection . ,selection)))))))
 
-(defun claude-code--get-flymake-diagnostics ()
+(defun claude-code-context--get-flymake-diagnostics ()
   "Get flymake diagnostics for current buffer as a list."
   (when (and (bound-and-true-p flymake-mode)
              (buffer-file-name))
@@ -106,20 +107,20 @@
              (text . ,(flymake-diagnostic-text diag))))
          diags)))))
 
-(defun claude-code-update-context ()
+(defun claude-code-context-update-context ()
   "Update Claude Code context file with current buffer state."
   (interactive)
-  (let ((context (claude-code--get-current-context)))
+  (let ((context (claude-code-context--get-current-context)))
     (when context
       (with-temp-file claude-code-context-file
         (insert (json-encode context)))
       (message "Claude Code context updated"))))
 
-(defun claude-code-add-diagnostics ()
+(defun claude-code-context-add-diagnostics ()
   "Add flymake diagnostics to Claude Code context file."
   (interactive)
-  (let ((context (claude-code--get-current-context))
-        (diags (claude-code--get-flymake-diagnostics)))
+  (let ((context (claude-code-context--get-current-context))
+        (diags (claude-code-context--get-flymake-diagnostics)))
     (when context
       (when diags
         (setq context (append context `((diagnostics . ,diags)))))
@@ -127,25 +128,25 @@
         (insert (json-encode context)))
       (message "Claude Code context updated with diagnostics"))))
 
-(defun claude-code-clear-context ()
+(defun claude-code-context-clear-context ()
   "Clear the Claude Code context file."
   (interactive)
   (when (file-exists-p claude-code-context-file)
     (delete-file claude-code-context-file)
     (message "Claude Code context cleared")))
 
-(defun claude-code--update-context-timer ()
+(defun claude-code-context--update-context-timer ()
   "Timer function to update context periodically."
-  (when (and (buffer-file-name)
-             (not (minibufferp)))
-    (claude-code-update-context)))
+  (with-current-buffer (window-buffer (selected-window))
+    (unless (minibufferp)
+      (claude-code-context-update-context))))
 
 (defun claude-code-context-mode-enable ()
   "Enable automatic context updates."
   (unless claude-code-context-timer
     (setq claude-code-context-timer
           (run-with-idle-timer claude-code-context-update-interval t
-                               #'claude-code--update-context-timer))
+                               #'claude-code-context--update-context-timer))
     (message "Claude Code context mode enabled")))
 
 (defun claude-code-context-mode-disable ()
@@ -155,27 +156,31 @@
     (setq claude-code-context-timer nil)
     (message "Claude Code context mode disabled")))
 
+(defvar claude-code-context-command-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "u") #'claude-code-context-update-context)
+    (define-key map (kbd "d") #'claude-code-context-add-diagnostics)
+    (define-key map (kbd "c") #'claude-code-context-clear-context)
+    (define-key map (kbd "m") #'claude-code-context-mode)
+    map)
+  "Keymap for claude-code-context commands.")
+
+(defvar claude-code-context-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-l") claude-code-context-command-map)
+    map)
+  "Keymap for `claude-code-context-mode'.")
+
 ;;;###autoload
 (define-minor-mode claude-code-context-mode
   "Minor mode for automatic Claude Code context updates."
   :global t
   :lighter " CC"
+  :keymap claude-code-context-mode-map
   :group 'claude-code-context
   (if claude-code-context-mode
       (claude-code-context-mode-enable)
     (claude-code-context-mode-disable)))
-
-;; Keybindings
-(defvar claude-code-context-command-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "u") #'claude-code-update-context)
-    (define-key map (kbd "d") #'claude-code-add-diagnostics)
-    (define-key map (kbd "c") #'claude-code-clear-context)
-    (define-key map (kbd "m") #'claude-code-context-mode)
-    map)
-  "Keymap for claude-code-context commands.")
-
-(global-set-key (kbd "C-c C-l") claude-code-context-command-map)
 
 (provide 'claude-code-context)
 ;;; claude-code-context.el ends here
