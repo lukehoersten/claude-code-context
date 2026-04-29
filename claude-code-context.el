@@ -59,6 +59,14 @@
 
 ;;; Code:
 
+(require 'json)
+
+(declare-function flymake-diagnostics "flymake" (&optional beg end))
+(declare-function flymake-diagnostic-beg "flymake" (diag))
+(declare-function flymake-diagnostic-type "flymake" (diag))
+(declare-function flymake-diagnostic-backend "flymake" (diag))
+(declare-function flymake-diagnostic-text "flymake" (diag))
+
 (defgroup claude-code-context nil
   "Share buffer context with Claude Code."
   :group 'tools
@@ -114,7 +122,8 @@
     (when context
       (with-temp-file claude-code-context-file
         (insert (json-encode context)))
-      (message "Claude Code context updated"))))
+      (when (called-interactively-p 'interactive)
+        (message "Claude Code context updated")))))
 
 (defun claude-code-context-add-diagnostics ()
   "Add flymake diagnostics to Claude Code context file."
@@ -142,7 +151,7 @@
       (claude-code-context-update-context))))
 
 (defun claude-code-context-mode-enable ()
-  "Enable automatic context updates."
+  "Enable automatic context update timer."
   (unless claude-code-context-timer
     (setq claude-code-context-timer
           (run-with-idle-timer claude-code-context-update-interval t
@@ -150,7 +159,7 @@
     (message "Claude Code context mode enabled")))
 
 (defun claude-code-context-mode-disable ()
-  "Disable automatic context updates."
+  "Disable automatic context update timer."
   (when claude-code-context-timer
     (cancel-timer claude-code-context-timer)
     (setq claude-code-context-timer nil)
