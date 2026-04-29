@@ -86,6 +86,9 @@
 (defvar claude-code-context-timer nil
   "Timer for updating Claude Code context.")
 
+(defvar claude-code-context--last-written nil
+  "Last JSON string written to context file, used to skip redundant writes.")
+
 (defun claude-code-context--get-current-context ()
   "Get current buffer context as an alist."
   (unless (minibufferp)
@@ -120,10 +123,13 @@
   (interactive)
   (let ((context (claude-code-context--get-current-context)))
     (when context
-      (with-temp-file claude-code-context-file
-        (insert (json-encode context)))
-      (when (called-interactively-p 'interactive)
-        (message "Claude Code context updated")))))
+      (let ((json (json-encode context)))
+        (unless (equal json claude-code-context--last-written)
+          (setq claude-code-context--last-written json)
+          (with-temp-file claude-code-context-file
+            (insert json)))
+        (when (called-interactively-p 'interactive)
+          (message "Claude Code context updated"))))))
 
 (defun claude-code-context-add-diagnostics ()
   "Add flymake diagnostics to Claude Code context file."
@@ -140,6 +146,7 @@
 (defun claude-code-context-clear-context ()
   "Clear the Claude Code context file."
   (interactive)
+  (setq claude-code-context--last-written nil)
   (when (file-exists-p claude-code-context-file)
     (delete-file claude-code-context-file)
     (message "Claude Code context cleared")))
