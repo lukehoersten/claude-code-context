@@ -8,6 +8,7 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: tools, ai, convenience
+;; Assisted-by: Claude:claude-opus-4-7
 
 ;; This file is not part of GNU Emacs.
 
